@@ -16,6 +16,5 @@ env = NicoEnv(
     joints=['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z', 'l_wrist_x']
 )
 
-env._robot.startSimulation()
 
 # check_env(env)

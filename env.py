@@ -22,7 +22,7 @@ class NicoEnv(Env):
     def __init__(self, config_file, scene_file, goal, joints=None):
         super(NicoEnv, self).__init__()
         self._scene = scene_file
-        self._config = Motion.pyrepConfig()
+        self._config = Motion.vrepRemoteConfig()
         self._config['vrep_scene'] = self._scene
         self._config['headless'] = True
         self._robot = Motion(motorConfig=config_file, vrep=True, vrepConfig=self._config)
@@ -51,13 +51,6 @@ class NicoEnv(Env):
     def _set_state(self, state):
         for joint in state.keys():
             self._robot.setAngle(joint, state[joint], 0.02)
-        i = 0
-        while True:
-            self._robot.nextSimulationStep()
-            i += 1
-            if i % 10 == 0:
-                if self._check_state(state):
-                    break
 
     def _check_state(self, state):
         current_state = self._get_state()
