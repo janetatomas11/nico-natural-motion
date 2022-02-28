@@ -3,6 +3,7 @@ from gym import Env
 from nicomotion.Motion import Motion
 from gym.spaces import Dict, Box
 import numpy as np
+from pyrep.objects import Shape
 
 available_joints = [
     'head_z', 'head_y', 'r_hip_x', 'r_hip_z', 'r_hip_y', 'r_knee_y', 'r_ankle_y', 'r_ankle_x', 'l_hip_x', 'l_hip_z',
@@ -26,6 +27,7 @@ class NicoEnv(Env):
         self._config['headless'] = True
         self._robot = Motion(motorConfig=config_file, vrep=True, vrepConfig=self._config)
         self._joints = joints if joints is not None else self._robot.getJointNames()
+        a = self._robot.getPose('r_knee_y')
         self._robot.startSimulation()
         self._n = len(self._joints)
         self._low = np.array([angle if angle <= 0 else angle - 360 for angle in [self._robot.getAngleLowerLimit(joint) for joint in self._joints]])
@@ -45,7 +47,7 @@ class NicoEnv(Env):
         current_state = self._get_state()
         return current_state == state
 
-    def compute_reward(self, state):
+    def compute_reward(self):
         return 0
 
     def step(self, action):
