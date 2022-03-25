@@ -62,7 +62,6 @@ class NicoEnv(Env):
         distance = np.linalg.norm(self.handle.get_position(self.target))
         reward = -distance
         done = distance <= self.threshold
-        print(reward)
         return observation, reward, done, {}
 
     def reset(self):
