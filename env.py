@@ -1,8 +1,7 @@
 from gym import Env
 from nicomotion.Motion import Motion
-from gym.spaces import Dict, Box
+from gym.spaces import Box
 import numpy as np
-from pyrep.objects import Shape
 from pypot.pyrep import PyRepIO, PyRep
 
 available_joints = [
@@ -17,7 +16,7 @@ right_arm = ['r_shoulder_y', 'r_shoulder_z', 'r_arm_x', 'r_elbow_y', 'r_wrist_z'
 left_arm = ['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z', 'l_wrist_x', 'l_indexfingers_x',
             'l_thumb_x']
 POS_MIN, POS_MAX = [-3., -3., -3.], [3.0, 3.0, 3.0]
-FRACTION_MAX_SPEED = 0.05
+FRACTION_MAX_SPEED = 1
 
 
 class NicoEnv(Env):
@@ -32,17 +31,18 @@ class NicoEnv(Env):
         self._config['headless'] = True
 
         self._robot = Motion(motorConfig=config_file, vrep=True, vrepConfig=self._config)
+        self.io.pyrep.step()
+
         self._joints = joints if joints is not None else self._robot.getJointNames()
-        self.handle = self.io.get_object('r_thumb_x')
         self.target = self.io.get_object('target')
+        self.handle = self.io.get_object('r_thumb_x')
+
         self._n = len(self._joints)
         self.initial_position = self._get_state()[0:self._n]
         self.threshold = 0.2
 
-        self._low = np.array([angle if angle <= 0 else angle - 360 for angle in
-                              [self._robot.getAngleLowerLimit(joint) for joint in self._joints]])
-        self._high = np.array([angle if angle >= 0 else 360 + angle for angle in
-                               [self._robot.getAngleUpperLimit(joint) for joint in self._joints]])
+        self._low = np.array([-180 for joint in self._joints])
+        self._high = np.array([180 for joint in self._joints])
 
         self.observation_space = Box(low=np.array(2 * POS_MIN), high=np.array(2 * POS_MAX))
         self.action_space = Box(low=self._low, high=self._high)
@@ -50,7 +50,7 @@ class NicoEnv(Env):
     def _execute_action(self, action):
         for angle, joint in zip(action, self._joints):
             self._robot.setAngle(jointName=joint, angle=angle, fractionMaxSpeed=FRACTION_MAX_SPEED)
-        for i in range(self._n):
+        for i in range(2):
             self.io.pyrep.step()
 
     def _get_state(self):
@@ -59,7 +59,10 @@ class NicoEnv(Env):
     def step(self, action):
         self._execute_action(action)
         observation = self._get_state()
-        distance = np.linalg.norm(self.handle.get_position(self.target))
+        a = self.handle.get_position()
+        b = self.target.get_position()
+        diff = np.subtract(a, b)
+        distance = np.matmul(diff, diff.transpose())
         reward = -distance
         done = distance <= self.threshold
         return observation, reward, done, {}
@@ -67,8 +70,8 @@ class NicoEnv(Env):
     def reset(self):
         observation = self.observation_space.sample()
         self.handle.set_position(observation[0:self._n])
+        self.target.set_position(observation[self._n:])
         self.io.pyrep.step()
-        # self.target.set_position(observation[1])
         return self._get_state()
 
     def render(self, mode='human'):

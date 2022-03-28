@@ -8,12 +8,12 @@ from stable_baselines3 import TD3
 
 config_dir = "configs"
 json_config = F"{config_dir}/nico_humanoid_vrep.json"
-scene = F"{config_dir}/NICO-seated.ttt"
+scene = F"{config_dir}/NICO-standing.ttt"
 
 env = NicoEnv(
     config_file=json_config,
     scene_file=scene,
-    joints=['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z', 'l_wrist_x']
+    joints=['l_shoulder_y', 'l_shoulder_z', 'l_elbow_y', 'l_wrist_z']
 )
 
 model = TD3("MlpPolicy", env=env, verbose=1)
