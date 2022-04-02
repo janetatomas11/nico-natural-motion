@@ -15,12 +15,18 @@ right_arm = ['r_shoulder_y', 'r_shoulder_z', 'r_arm_x', 'r_elbow_y', 'r_wrist_z'
              'r_thumb_x']
 left_arm = ['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z', 'l_wrist_x', 'l_indexfingers_x',
             'l_thumb_x']
-POS_MIN, POS_MAX = [-3., -3., -3.], [3.0, 3.0, 3.0]
+
+POS_MIN = [-3., -3., -3.]
+POS_MAX = [3.0, 3.0, 3.0]
+
+TARGET_POS_MIN = [0, -0.5, 0.5]
+TARGET_POS_MAX = [2, 0.5, 1.5]
+
 FRACTION_MAX_SPEED = 1
 
 
 class NicoEnv(Env):
-    def __init__(self, config_file, scene_file, joints=None):
+    def __init__(self, config_file, scene_file, episode_length=50, joints=None):
         super(NicoEnv, self).__init__()
         self.io = PyRepIO(scene=scene_file, start=True, blocking=False)
         self._scene = scene_file
@@ -34,18 +40,20 @@ class NicoEnv(Env):
         self.io.pyrep.step()
 
         self._joints = joints if joints is not None else self._robot.getJointNames()
-        self.target = self.io.get_object('target')
         self.handle = self.io.get_object('r_thumb_x')
 
         self._n = len(self._joints)
-        self.initial_position = self._get_state()[0:self._n]
-        self.threshold = 0.2
+        self.threshold = 1
 
-        self._low = np.array([-180 for joint in self._joints])
-        self._high = np.array([180 for joint in self._joints])
+        self._low = np.array([-180 for _ in self._joints])
+        self._high = np.array([180 for _ in self._joints])
 
-        self.observation_space = Box(low=np.array(2 * POS_MIN), high=np.array(2 * POS_MAX))
+        self.observation_space = Box(low=np.array(POS_MIN + TARGET_POS_MIN), high=np.array(POS_MAX + TARGET_POS_MAX))
         self.action_space = Box(low=self._low, high=self._high)
+        self.target = self.observation_space.sample()[self._n-1:]
+
+        self.episode_lenth = episode_length
+        self.steps = 0
 
     def _execute_action(self, action):
         for angle, joint in zip(action, self._joints):
@@ -54,24 +62,31 @@ class NicoEnv(Env):
             self.io.pyrep.step()
 
     def _get_state(self):
-        return np.concatenate([self.handle.get_position(), self.target.get_position()])
+        return np.concatenate([self.handle.get_position(), self.target])
 
     def step(self, action):
         self._execute_action(action)
         observation = self._get_state()
         a = self.handle.get_position()
-        b = self.target.get_position()
-        diff = np.subtract(a, b)
+        diff = np.subtract(a, self.target)
         distance = np.matmul(diff, diff.transpose())
-        reward = -distance
-        done = distance <= self.threshold
+        close = distance <= self.threshold
+        done = close or self.steps >= self.episode_lenth
+        reward = -distance**2
+        if close:
+            reward += 3
+        if done and not close:
+            reward -= 3
+        print(self.steps, reward)
+        self.steps += 1
         return observation, reward, done, {}
 
     def reset(self):
         observation = self.observation_space.sample()
-        self.handle.set_position(observation[0:self._n])
-        self.target.set_position(observation[self._n:])
+        self.handle.set_position(observation[0:3])
+        self.target = observation[3:]
         self.io.pyrep.step()
+        self.steps = 0
         return self._get_state()
 
     def render(self, mode='human'):
