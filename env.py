@@ -26,9 +26,9 @@ FRACTION_MAX_SPEED = 1
 
 
 class NicoEnv(Env):
-    def __init__(self, config_file, scene_file, episode_length=50, joints=None):
+    def __init__(self, config_file, scene_file, episode_length=50, joints=None, headless=False):
         super(NicoEnv, self).__init__()
-        self.io = PyRepIO(scene=scene_file, start=True, blocking=False)
+        self.io = PyRepIO(scene=scene_file, start=True, blocking=False, headless=headless)
         self._scene = scene_file
         self._config = Motion.pyrepConfig()
         self._config['shared_vrep_io'] = self.io
