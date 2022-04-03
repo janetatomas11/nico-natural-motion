@@ -9,7 +9,7 @@ POS_MIN, POS_MAX = [0.8, -0.2, 1.0], [1.0, 0.2, 1.4]
 
 
 class PandaReacher(Env):
-    def __init__(self, scene_file):
+    def __init__(self, scene_file, episode_length=20):
         self.pr = PyRep()
         self.pr.launch(scene_file, headless=False)
         self.pr.start()
@@ -26,9 +26,13 @@ class PandaReacher(Env):
 
         self._threshold = 0.05
 
+        self._episode_length = episode_length
+        self._step = 0
+
     def _execute_action(self, action):
         self.agent.set_joint_positions(action)
         self.pr.step()
+        self._step += 1
 
     def _get_state(self):
         return np.concatenate([self.agent.get_joint_positions(), self.target.get_position()])
@@ -37,13 +41,13 @@ class PandaReacher(Env):
         a = self.agent.get_tip().get_position()
         b = self.target.get_position()
         diff = a - b
-        return -np.matmul(diff, diff.transpose())
+        return np.matmul(diff, diff.transpose()) if self._step <= self._episode_length else -1000
 
     def step(self, action):
         self._execute_action(action)
         observation = self._get_state()
         reward = self._reward()
-        done = abs(reward) <= self._threshold
+        done = abs(reward) <= self._threshold or self._step > self._episode_length
         info = {}
         print(reward)
         return observation, reward, done, info
@@ -52,6 +56,7 @@ class PandaReacher(Env):
         self._execute_action(self.action_space.sample())
         self.target.set_position(np.random.uniform(POS_MIN, POS_MAX))
         self.pr.step()
+        self._step = 0
 
     def render(self, mode="human"):
         pass
