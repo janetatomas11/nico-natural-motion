@@ -16,4 +16,4 @@ env = NicoEnv(
 )
 
 model = TD3("MlpPolicy", env=env, verbose=1, learning_rate=0.01)
-model.learn(total_timesteps=10000)
+model.learn(total_timesteps=10000, log_interval=100)

@@ -55,6 +55,9 @@ class NicoEnv(Env):
         self.episode_lenth = episode_length
         self.steps = 0
 
+        self.invalid_movement_threshold = 0.2
+        self._initial_legs_position = self._legs_position()
+
     def _execute_action(self, action):
         for angle, joint in zip(action, self._joints):
             self._robot.setAngle(jointName=joint, angle=angle, fractionMaxSpeed=FRACTION_MAX_SPEED)
@@ -64,22 +67,51 @@ class NicoEnv(Env):
     def _get_state(self):
         return np.concatenate([self.handle.get_position(), self.target])
 
+    def _check_fall(self):
+        return self.handle.get_position()[2] <= self.invalid_movement_threshold
+
+    def _legs_position(self):
+        return np.concatenate([self.io.get_object_position('r_ankle_y'),
+                               self.io.get_object_position('l_ankle_y'),
+                               self.io.get_object_position('r_knee_y'),
+                               self.io.get_object_position('l_knee_y')])
+
+    def _check_invalid_move(self):
+        current = self._legs_position()
+        diff = self._initial_legs_position - current
+        return np.linalg.norm(diff) <= self.invalid_movement_threshold
+
+    def _distance(self):
+        current = self.handle.get_position()
+        goal = self.target
+        diff = goal - current
+        return -np.linalg.norm(diff)
+
     def step(self, action):
         self._execute_action(action)
+
+        # handle fall of the robot
+        if self._check_fall():
+            observation, reward, done, info = self._get_state(), -1000, True, {}
+            self._robot.resetSimulation()
+            print(reward, self._get_state())
+            return observation, reward, done, info
+
         observation = self._get_state()
-        a = self.handle.get_position()
-        diff = np.subtract(a, self.target)
-        distance = np.matmul(diff, diff.transpose())
-        close = distance <= self.threshold
-        done = close or self.steps >= self.episode_lenth
+        distance = self._distance()
         reward = -distance
-        if close:
-            reward += 3
-        if done and not close:
-            reward -= 3
-        print(self.steps, reward, self._get_state())
+        done = distance <= self.threshold or self.steps >= self.episode_lenth
+        info = {}
+
+        # handle invalid movement of the legs
+        if self._check_invalid_move():
+            reward -= 100
+
         self.steps += 1
-        return observation, reward, done, {}
+
+        print(reward, self._get_state())
+
+        return observation, reward, done, info
 
     def reset(self):
         observation = self.observation_space.sample()
