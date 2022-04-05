@@ -19,8 +19,8 @@ left_arm = ['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z',
 POS_MIN = [-3., -3., -3.]
 POS_MAX = [3.0, 3.0, 3.0]
 
-TARGET_POS_MIN = [0, -0.5, 0.5]
-TARGET_POS_MAX = [2, 0.5, 1.5]
+TARGET_POS_MIN = [1, -0.5, 0.5]
+TARGET_POS_MAX = [3, 0.5, 1.5]
 
 FRACTION_MAX_SPEED = 1
 
@@ -40,7 +40,7 @@ class NicoEnv(Env):
         self.io.pyrep.step()
 
         self._joints = joints if joints is not None else self._robot.getJointNames()
-        self.handle = self.io.get_object('r_thumb_x')
+        self.handle = self.io.get_object('l_thumb_x')
 
         self._n = len(self._joints)
         self.threshold = 1
@@ -72,12 +72,12 @@ class NicoEnv(Env):
         distance = np.matmul(diff, diff.transpose())
         close = distance <= self.threshold
         done = close or self.steps >= self.episode_lenth
-        reward = -distance**2
+        reward = -distance
         if close:
             reward += 3
         if done and not close:
             reward -= 3
-        print(self.steps, reward)
+        print(self.steps, reward, self._get_state())
         self.steps += 1
         return observation, reward, done, {}
 
