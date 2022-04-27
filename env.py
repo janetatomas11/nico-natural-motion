@@ -19,14 +19,14 @@ left_arm = ['l_shoulder_y', 'l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z',
 POS_MIN = [-3., -3., -3.]
 POS_MAX = [3.0, 3.0, 3.0]
 
-TARGET_POS_MIN = [1, -0.5, 0.5]
-TARGET_POS_MAX = [3, 0.5, 1.5]
+TARGET_POS_MIN = [0.3, -0.5, 0.5]
+TARGET_POS_MAX = [1, 0.5, 1.5]
 
 FRACTION_MAX_SPEED = 1
 
 
 class NicoEnv(Env):
-    def __init__(self, config_file, scene_file, episode_length=50, joints=None, headless=False):
+    def __init__(self, config_file, scene_file, episode_length=10, joints=None, headless=False):
         super(NicoEnv, self).__init__()
         self.io = PyRepIO(scene=scene_file, start=True, blocking=False, headless=headless)
         self._scene = scene_file
@@ -37,13 +37,14 @@ class NicoEnv(Env):
         self._config['headless'] = True
 
         self._robot = Motion(motorConfig=config_file, vrep=True, vrepConfig=self._config)
+
         self.io.pyrep.step()
 
         self._joints = joints if joints is not None else self._robot.getJointNames()
         self.handle = self.io.get_object('l_thumb_x')
 
         self._n = len(self._joints)
-        self.threshold = 1
+        self.threshold = 2.7
 
         self._low = np.array([-180 for _ in self._joints])
         self._high = np.array([180 for _ in self._joints])
@@ -68,7 +69,7 @@ class NicoEnv(Env):
         return np.concatenate([self.handle.get_position(), self.target])
 
     def _check_fall(self):
-        return self.handle.get_position()[2] <= self.invalid_movement_threshold
+        return self.io.get_object_position('head_z')[2] <= self.invalid_movement_threshold
 
     def _legs_position(self):
         return np.concatenate([self.io.get_object_position('r_ankle_y'),
@@ -79,44 +80,54 @@ class NicoEnv(Env):
     def _check_invalid_move(self):
         current = self._legs_position()
         diff = self._initial_legs_position - current
-        return np.linalg.norm(diff) <= self.invalid_movement_threshold
+        return np.linalg.norm(diff) >= self.invalid_movement_threshold
 
     def _distance(self):
         current = self.handle.get_position()
         goal = self.target
         diff = goal - current
-        return -np.linalg.norm(diff)
+        return np.linalg.norm(diff)
 
     def step(self, action):
         self._execute_action(action)
 
+        info = {}
+        current = self.handle.get_position()
+        distance = np.linalg.norm(self.target - current)
+
         # handle fall of the robot
         if self._check_fall():
-            observation, reward, done, info = self._get_state(), -1000, True, {}
-            self._robot.resetSimulation()
-            print(reward, self._get_state())
-            return observation, reward, done, info
-
-        observation = self._get_state()
-        distance = self._distance()
-        reward = -distance
-        done = distance <= self.threshold or self.steps >= self.episode_lenth
-        info = {}
-
+            observation, reward, done = self._get_state(), -1000, True
         # handle invalid movement of the legs
-        if self._check_invalid_move():
-            reward -= 100
+        elif self._check_invalid_move():
+            observation = self._get_state()
+            reward = -100
+            done = True
+        elif self.steps >= self.episode_lenth:
+            observation = self._get_state()
+            reward = -100
+            done = True
+        elif distance <= self.threshold:
+            observation = self._get_state()
+            reward = 100
+            done = True
+        else:
+            self.steps += 1
+            self.handle.get_position()
+            observation = self._get_state()
+            reward = -distance**2
+            done = False
 
-        self.steps += 1
-
-        print(reward, self._get_state())
+        print(reward, distance, self._get_state())
 
         return observation, reward, done, info
 
     def reset(self):
+        self._robot.resetSimulation()
         observation = self.observation_space.sample()
         self.handle.set_position(observation[0:3])
         self.target = observation[3:]
+
         self.io.pyrep.step()
         self.steps = 0
         return self._get_state()

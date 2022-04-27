@@ -9,11 +9,15 @@ config_dir = "configs"
 json_config = F"{config_dir}/nico_humanoid_vrep.json"
 scene = F"{config_dir}/NICO-standing.ttt"
 
+joints = ['l_shoulder_y']
+
 env = NicoEnv(
     config_file=json_config,
     scene_file=scene,
-    joints=['l_shoulder_z', 'l_arm_x', 'l_elbow_y', 'l_wrist_z'],
+    joints=joints,
+    headless=True,
 )
 
-model = TD3("MlpPolicy", env=env, verbose=1, learning_rate=0.01)
-model.learn(total_timesteps=10000, log_interval=100)
+model = TD3("MlpPolicy", env=env, verbose=1, learning_rate=0.1)
+model.learn(total_timesteps=300, log_interval=100)
+model.save(':'.join(joints))
