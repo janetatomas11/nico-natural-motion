@@ -1,0 +1,31 @@
+{
+  "image": {
+    "build": true,
+    "dockerfile": "Dockerfile",
+    "tag": "RL_IMAGE_NICO"
+  },
+  "container": {
+    "detach": false,
+    "command": "",
+    "volume": {
+      "name": "RL_SAVINGS_NICO",
+      "path": "/opt/nico-savings"
+    },
+    "name": "RL_CONTAINER_001",
+    "rl_environment":  {
+      "method": "",
+      "args": [],
+      "kwargs": {}
+    },
+    "train": {
+      "method": "",
+      "args": [],
+      "kwargs": {}
+    },
+    "process": {
+      "method": "",
+      "args": [],
+      "kwargs": {}
+    }
+  }
+}
